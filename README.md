@@ -76,7 +76,7 @@ Ensure that the following runtimes are installed on your host system:
 
 5. **Access the Application:**
    Open a web browser and navigate to the local address output by Vite:
-   [http://localhost:5173/](http://localhost:5173/)
+   [https://summariz-manijoshi-567.vercel.app/](https://summariz-manijoshi-567.vercel.app/)
 
 ---
 
