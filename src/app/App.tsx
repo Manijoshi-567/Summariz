@@ -1,10 +1,11 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   FileText,
   ImageIcon,
   Upload,
   Sparkles,
   Eye,
+  EyeOff,
   Clock,
   Shield,
   Copy,
@@ -15,6 +16,14 @@ import {
   Zap,
   FileSearch,
   Settings,
+  Lock,
+  Key,
+  Trash2,
+  CheckCircle2,
+  ShieldCheck,
+  User,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { extractTextFromPDF } from "../services/pdfExtractor";
@@ -22,6 +31,10 @@ import { extractTextFromImage } from "../services/ocrExtractor";
 import { generateSummary } from "../services/geminiService";
 import { extractTextFromDocx } from "../services/docxExtractor";
 import { extractTextFromXlsx } from "../services/xlsxExtractor";
+import { AuthModal } from "./components/AuthModal";
+import { HistoryDrawer } from "./components/HistoryDrawer";
+import { getCurrentUser, subscribeAuth, logoutUser, UserSession } from "../services/authStore";
+import { saveHistoryItem } from "../services/historyStore";
 
 type AppState = "idle" | "processing" | "complete";
 type SummaryLength = "short" | "medium" | "long";
@@ -59,12 +72,24 @@ function UploadZone({
   handleDrop,
   handleFileChange,
   fileInputRef,
+  selectedTone,
+  setSelectedTone,
+  selectedFormat,
+  setSelectedFormat,
+  summaryLength,
+  setSummaryLength,
 }: {
   isDragging: boolean;
   setIsDragging: (v: boolean) => void;
   handleDrop: (e: React.DragEvent) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  selectedTone: string;
+  setSelectedTone: (tone: string) => void;
+  selectedFormat: string;
+  setSelectedFormat: (format: string) => void;
+  summaryLength: SummaryLength;
+  setSummaryLength: (len: SummaryLength) => void;
 }) {
   return (
     <motion.div
@@ -72,6 +97,87 @@ function UploadZone({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
+      {/* Configuration Control Panel */}
+      <div
+        className="mb-6 p-5 bg-card border border-border rounded-2xl shadow-sm space-y-4 text-left cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-2 font-['Plus_Jakarta_Sans',sans-serif] font-700 text-sm text-foreground">
+            <Zap className="w-4 h-4 text-primary" />
+            <span>AI Customization Controls</span>
+          </div>
+          <span className="text-[11px] font-500 text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+            Chain of Density Engine
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Tone Selector */}
+          <div>
+            <label className="block text-xs font-600 text-muted-foreground uppercase tracking-wider mb-1.5 font-['Inter',sans-serif]">
+              Tone & Perspective
+            </label>
+            <select
+              value={selectedTone}
+              onChange={(e) => setSelectedTone(e.target.value)}
+              className="w-full bg-muted/60 border border-border rounded-xl px-3.5 py-2 text-xs font-500 text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer"
+            >
+              <option value="Professional / Executive">Professional / Executive (Default)</option>
+              <option value="Analyst / Critical">Analyst / Critical</option>
+              <option value="Educator / Explanatory">Educator / Explanatory</option>
+              <option value="Simple / ELI5">Simple / ELI5</option>
+              <option value="Direct / Bullet-focused">Direct / Bullet-focused</option>
+            </select>
+          </div>
+
+          {/* Format Selector */}
+          <div>
+            <label className="block text-xs font-600 text-muted-foreground uppercase tracking-wider mb-1.5 font-['Inter',sans-serif]">
+              Summary Format
+            </label>
+            <select
+              value={selectedFormat}
+              onChange={(e) => setSelectedFormat(e.target.value)}
+              className="w-full bg-muted/60 border border-border rounded-xl px-3.5 py-2 text-xs font-500 text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer"
+            >
+              <option value="Executive Bullet Points">Executive Bullet Points (Default)</option>
+              <option value="Narrative + Key Takeaways">Narrative + Key Takeaways</option>
+              <option value="Q&A Format">Q&A Format</option>
+              <option value="Action Items & Next Steps">Action Items & Next Steps</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Length Tier Selector */}
+        <div>
+          <label className="block text-xs font-600 text-muted-foreground uppercase tracking-wider mb-1.5 font-['Inter',sans-serif]">
+            Target Depth & Length
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: "short", label: "Short", sub: "~100-150w" },
+              { id: "medium", label: "Medium", sub: "~250-400w" },
+              { id: "long", label: "Detailed", sub: "~600+w" },
+            ].map(({ id, label, sub }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setSummaryLength(id as SummaryLength)}
+                className={`px-3 py-2 rounded-xl text-xs transition-all text-center ${
+                  summaryLength === id
+                    ? "bg-primary text-primary-foreground border-primary font-600 shadow-sm"
+                    : "bg-muted/40 border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <div className="font-600">{label}</div>
+                <div className="text-[10px] opacity-80">{sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
@@ -401,6 +507,8 @@ export default function App() {
   const [appState, setAppState] = useState<AppState>("idle");
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [selectedTone, setSelectedTone] = useState<string>("Professional / Executive");
+  const [selectedFormat, setSelectedFormat] = useState<string>("Executive Bullet Points");
   const [summaryLength, setSummaryLength] = useState<SummaryLength>("medium");
   const [processingStep, setProcessingStep] = useState(0);
   const [extractionProgress, setExtractionProgress] = useState(0);
@@ -413,24 +521,89 @@ export default function App() {
   const [keyPoints, setKeyPoints] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState(import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem("gemini_api_key") || "");
+  const [showApiKeyPassword, setShowApiKeyPassword] = useState(false);
+  const [savedNotification, setSavedNotification] = useState("");
+  const [highlightDropzone, setHighlightDropzone] = useState(false);
+
+  // Auth & History State
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(() => getCurrentUser());
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = subscribeAuth((user) => setCurrentUser(user));
+    return () => unsubscribe();
+  }, []);
+
+  const [apiKeyInput, setApiKeyInput] = useState(() => {
+    if (typeof window !== "undefined") {
+      return (
+        localStorage.getItem("summify_gemini_api_key") ||
+        localStorage.getItem("gemini_api_key") ||
+        import.meta.env.VITE_GEMINI_API_KEY ||
+        ""
+      );
+    }
+    return "";
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const scrollToUpload = useCallback((openFilePicker = false) => {
+    const element = document.getElementById("upload-section");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightDropzone(true);
+      setTimeout(() => setHighlightDropzone(false), 2000);
+      if (openFilePicker) {
+        setTimeout(() => fileInputRef.current?.click(), 500);
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  }, []);
+
   const processFile = useCallback(async (file: File) => {
     if (!file) return;
+
+    // 1. Strict File Size Limit Guard (15 MB Max)
+    const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setErrorMsg("Security Alert: File size exceeds maximum limit of 15 MB. Please upload a smaller file.");
+      setAppState("idle");
+      return;
+    }
+
+    // 2. Strict Anti-Archive / Zip Bomb Filter
+    const fileName = file.name.toLowerCase();
+    const FORBIDDEN_EXTENSIONS = [".zip", ".tar", ".gz", ".7z", ".rar", ".iso", ".exe", ".bin", ".bz2", ".xz", ".jar"];
+    const isArchive = FORBIDDEN_EXTENSIONS.some((ext) => fileName.endsWith(ext));
+    if (
+      isArchive ||
+      file.type === "application/zip" ||
+      file.type === "application/x-zip-compressed" ||
+      file.type.includes("compressed") ||
+      file.type.includes("archive")
+    ) {
+      setErrorMsg("Security Alert: Direct zip/archive uploads are blocked to prevent Decompression Bomb exploits. Please upload PDF, Word (.docx), Excel (.xlsx), TXT, or Image files directly.");
+      setAppState("idle");
+      return;
+    }
+
     setUploadedFile(file);
     setAppState("processing");
     setProcessingStep(0);
     setExtractionProgress(0);
     setErrorMsg("");
 
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem("gemini_api_key") || "";
-    if (!apiKey) {
-      setErrorMsg("Google Gemini API Key is missing. Please configure VITE_GEMINI_API_KEY in your .env file, or set it via the settings (gear icon) in the top-right navbar to start summarization.");
-      setAppState("idle");
-      return;
-    }
+    const apiKey =
+      apiKeyInput.trim() ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("summify_gemini_api_key") ||
+          localStorage.getItem("gemini_api_key") ||
+          import.meta.env.VITE_GEMINI_API_KEY ||
+          ""
+        : "");
 
     try {
       // Step 0: Reading structure
@@ -440,7 +613,6 @@ export default function App() {
       // Step 1: Extracting text & tables
       setProcessingStep(1);
       let extractedText = "";
-      const fileName = file.name.toLowerCase();
 
       if (file.type === "application/pdf" || fileName.endsWith(".pdf")) {
         extractedText = await extractTextFromPDF(file, (p) => {
@@ -481,6 +653,9 @@ export default function App() {
         );
       }
 
+      // Sanitize extracted text against null bytes and control chars
+      extractedText = extractedText.replace(/\0/g, "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+
       if (!extractedText || extractedText.trim().length === 0) {
         throw new Error("No readable text could be extracted from this document.");
       }
@@ -489,9 +664,18 @@ export default function App() {
       setProcessingStep(2);
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Step 3: Generating summary
+      // Step 3: Generating summary with Chain of Density Engine
       setProcessingStep(3);
-      const result = await generateSummary(extractedText, apiKey);
+      const result = await generateSummary(
+        extractedText,
+        {
+          tone: selectedTone,
+          format: selectedFormat,
+          length: summaryLength === "short" ? "Short (~100-150 words)" : summaryLength === "long" ? "Detailed (~600+ words)" : "Medium (~250-400 words)",
+          file: file,
+        },
+        apiKey
+      );
 
       setSummaries({
         short: result.short,
@@ -499,13 +683,31 @@ export default function App() {
         long: result.long,
       });
       setKeyPoints(result.keyPoints);
+
+      // Save summary to history automatically if user is logged in
+      const activeUser = getCurrentUser();
+      if (activeUser) {
+        saveHistoryItem({
+          user_id: activeUser.id,
+          document_name: file.name,
+          summary_text: result.medium || result.short || result.long,
+          short_summary: result.short,
+          medium_summary: result.medium,
+          long_summary: result.long,
+          keyPoints: result.keyPoints,
+          tone: selectedTone,
+          format: selectedFormat,
+          length: summaryLength,
+        });
+      }
+
       setAppState("complete");
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || "An unexpected error occurred while parsing the document.");
       setAppState("idle");
     }
-  }, []);
+  }, [apiKeyInput, selectedTone, selectedFormat, summaryLength]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -580,12 +782,42 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="bg-primary text-primary-foreground text-sm font-600 px-4 py-2 rounded-xl hover:opacity-90 active:scale-95 transition-all duration-150"
-            >
-              Try Free
-            </button>
+            {currentUser ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryDrawer(true)}
+                  className="inline-flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-600 px-3.5 py-2 rounded-xl transition-all cursor-pointer border border-primary/20"
+                  title="View saved summary history"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>My History</span>
+                </button>
+
+                <div className="hidden sm:flex items-center gap-1.5 bg-muted px-3 py-1.5 rounded-xl border border-border text-xs text-foreground">
+                  <User className="w-3.5 h-3.5 text-primary" />
+                  <span className="font-600">@{currentUser.username}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => logoutUser()}
+                  className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors cursor-pointer"
+                  title="Log Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAuthModal(true)}
+                className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-600 px-4 py-2 rounded-xl hover:opacity-90 active:scale-95 transition-all duration-150 cursor-pointer shadow-sm shadow-primary/20"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Login / Sign Up</span>
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -616,7 +848,12 @@ export default function App() {
           </div>
 
           {/* Interactive panel */}
-          <div className="max-w-2xl mx-auto">
+          <div
+            id="upload-section"
+            className={`max-w-2xl mx-auto transition-all duration-500 rounded-2xl ${
+              highlightDropzone ? "ring-4 ring-primary/60 shadow-xl shadow-primary/20 scale-[1.01]" : ""
+            }`}
+          >
             {errorMsg && (
               <div className="mb-6 p-5 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex flex-col gap-2.5 items-start">
                 <div className="font-600 flex items-center gap-2">
@@ -648,6 +885,12 @@ export default function App() {
                     handleDrop={handleDrop}
                     handleFileChange={handleFileChange}
                     fileInputRef={fileInputRef}
+                    selectedTone={selectedTone}
+                    setSelectedTone={setSelectedTone}
+                    selectedFormat={selectedFormat}
+                    setSelectedFormat={setSelectedFormat}
+                    summaryLength={summaryLength}
+                    setSummaryLength={setSummaryLength}
                   />
                 </motion.div>
               )}
@@ -757,8 +1000,8 @@ export default function App() {
                 research papers, or financial filings.
               </p>
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 bg-primary text-primary-foreground font-600 text-sm px-5 py-2.5 rounded-xl hover:opacity-90 active:scale-95 transition-all duration-150"
+                onClick={() => scrollToUpload(true)}
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground font-600 text-sm px-5 py-2.5 rounded-xl hover:opacity-90 active:scale-95 transition-all duration-150 cursor-pointer"
               >
                 Try it now — it's free
                 <ChevronRight className="w-4 h-4" />
@@ -866,10 +1109,7 @@ export default function App() {
 
             {/* Primary upload button */}
             <button
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: "smooth" });
-                setTimeout(() => fileInputRef.current?.click(), 600);
-              }}
+              onClick={() => scrollToUpload(true)}
               className="inline-flex items-center gap-2 bg-[#00c853] hover:bg-[#00b853] text-white font-700 text-sm px-7 py-3 rounded-full shadow-lg shadow-[#00c853]/25 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-150 relative z-10 cursor-pointer"
             >
               <Upload className="w-4 h-4" />
@@ -917,23 +1157,54 @@ export default function App() {
               className="bg-card text-foreground rounded-2xl border border-border w-full max-w-md p-6 shadow-xl relative"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="font-['Plus_Jakarta_Sans',sans-serif] font-700 text-xl mb-2">Gemini API Key Settings</h3>
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <h3 className="font-['Plus_Jakarta_Sans',sans-serif] font-700 text-xl">
+                  API Key & Security Settings
+                </h3>
+              </div>
+
               <p className="text-muted-foreground text-sm mb-5 leading-relaxed">
-                Your files are processed 100% locally. Summarization requires a Google Gemini API Key. If you don't have one, you can get a free key from the Google AI Studio.
+                Your API key is saved <strong>exclusively in your browser's LocalStorage</strong>. It is never embedded in the website source code, stored on a remote server, or shared with anyone.
               </p>
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-600 font-['Inter',sans-serif] text-muted-foreground uppercase tracking-widest block mb-2">
-                    Gemini API Key
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="AIzaSy..."
-                    value={apiKeyInput}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
-                    className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors font-['Inter',sans-serif]"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-600 font-['Inter',sans-serif] text-muted-foreground uppercase tracking-widest">
+                      Google Gemini API Key
+                    </label>
+                    {apiKeyInput.trim() ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-500 text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="w-3 h-3" /> Key Active
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-500 text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                        Local Fallback Mode
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="relative">
+                    <input
+                      type={showApiKeyPassword ? "text" : "password"}
+                      placeholder="AIzaSy..."
+                      value={apiKeyInput}
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      className="w-full bg-muted border border-border rounded-xl pl-10 pr-12 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors font-mono"
+                    />
+                    <Key className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKeyPassword(!showApiKeyPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+                      title={showApiKeyPassword ? "Hide API Key" : "Show API Key"}
+                    >
+                      {showApiKeyPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between text-xs pt-1">
@@ -941,27 +1212,66 @@ export default function App() {
                     href="https://aistudio.google.com/"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-primary font-500 hover:underline"
+                    className="text-primary font-500 hover:underline inline-flex items-center gap-1"
                   >
-                    Get a free API Key
+                    Get free Google API key →
                   </a>
-                  <span className="text-muted-foreground">Stored securely in local storage</span>
+                  {apiKeyInput.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setApiKeyInput("");
+                        localStorage.removeItem("summify_gemini_api_key");
+                        localStorage.removeItem("gemini_api_key");
+                        setSavedNotification("API key cleared.");
+                        setTimeout(() => setSavedNotification(""), 3000);
+                      }}
+                      className="text-destructive hover:underline font-500 inline-flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Clear Stored Key
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-border">
+                {savedNotification && (
+                  <div className="text-xs text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-lg text-center font-500">
+                    {savedNotification}
+                  </div>
+                )}
+
+                <div className="p-3 bg-muted/60 border border-border/50 rounded-xl text-xs text-muted-foreground leading-relaxed flex items-start gap-2">
+                  <Lock className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Privacy Guarantee:</strong> Only you have access to your key. Anyone inspecting the website code will only see a blank client placeholder.
+                  </span>
+                </div>
+
+                <div className="flex gap-3 pt-3 border-t border-border">
                   <button
+                    type="button"
                     onClick={() => setShowSettings(false)}
                     className="flex-1 bg-muted hover:bg-muted/80 text-foreground text-sm font-600 py-2.5 rounded-xl transition-colors"
                   >
-                    Cancel
+                    Close
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
-                      localStorage.setItem("gemini_api_key", apiKeyInput);
-                      setShowSettings(false);
-                      if (apiKeyInput) {
+                      const trimmed = apiKeyInput.trim();
+                      if (trimmed) {
+                        localStorage.setItem("summify_gemini_api_key", trimmed);
+                        localStorage.setItem("gemini_api_key", trimmed);
+                        setSavedNotification("Key saved securely to browser!");
                         setErrorMsg("");
+                      } else {
+                        localStorage.removeItem("summify_gemini_api_key");
+                        localStorage.removeItem("gemini_api_key");
+                        setSavedNotification("Key removed.");
                       }
+                      setTimeout(() => {
+                        setSavedNotification("");
+                        setShowSettings(false);
+                      }, 1000);
                     }}
                     className="flex-1 bg-primary text-primary-foreground hover:opacity-90 text-sm font-600 py-2.5 rounded-xl transition-all duration-150"
                   >
@@ -973,6 +1283,24 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Auth Modal & History Drawer */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={(session) => {
+          setCurrentUser(session);
+          setSavedNotification(`Welcome back, @${session.username}!`);
+          setTimeout(() => setSavedNotification(""), 4000);
+        }}
+      />
+
+      <HistoryDrawer
+        isOpen={showHistoryDrawer}
+        onClose={() => setShowHistoryDrawer(false)}
+        userId={currentUser?.id || ""}
+        username={currentUser?.username || ""}
+      />
     </div>
   );
 }
