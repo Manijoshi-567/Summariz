@@ -110,26 +110,29 @@ By decoupling text parsing from the AI inference engine, Summify processes files
 
 ---
 
-## 4. Feature Architecture
+## 4. Phase 2 Advanced Feature Architecture
 
-Summify provides a robust feature set optimized for professional workflows:
+Summify incorporates production-grade AI summarization features, security shields, and custom controls:
 
-* **Universal Document Ingestion**: Native client-side support for:
-  * **Portable Document Format** (`.pdf`)
-  * **Microsoft Word** (`.docx`)
-  * **Microsoft Excel** (`.xlsx`)
-  * **Structured Tables** (`.csv`)
-  * **Scanned Images** (`.png`, `.jpg`, `.jpeg`)
-  * **Plain Text Markup** (`.txt`, `.md`, `.json`)
-* **Local WebAssembly OCR**: Background text extraction from scanned forms, diagram screenshots, or printed reports utilizing `Tesseract.js`.
-* **Dynamic Summary Depth Controls**: Instantly switch between three pre-configured granularities without re-extracting text:
-  * **Executive Recap (Short)**: A concise, single-sentence summary targeting immediate core takeaways.
-  * **Synopsis (Medium)**: A structured 1-to-2 paragraph breakdown highlighting primary arguments.
-  * **Analytical Report (Long)**: An in-depth, multi-paragraph analysis detailing data points and conclusions.
-* **Key Takeaway Matrix**: Automatically extracts and parses core action items and structural conclusions into a clean, bulleted checklist.
-* **Export Utilities**: One-click copy-to-clipboard functionality and download modules to save generated summaries as formatted plain-text files (`.txt`).
-* **Interactive Pipeline Feedback**: Visual step indicators detailing document ingestion states (parsing, OCR extraction, analytical processing, and summary generation).
-* **Secure API Storage**: Built-in API configuration modal enabling secure key management, persisted directly inside `window.localStorage`.
+* **Chain of Density (CoD) Synthesis Engine**: Employs an advanced prompt engineering methodology to produce high-density, entity-rich summaries without conversational fluff or hallucination, strictly grounded in source material.
+* **AI Customization Controls**: Pre-synthesis configuration options positioned directly above the upload area:
+  * **Tone & Perspective**: `Professional / Executive` (Default), `Analyst / Critical`, `Educator / Explanatory`, `Simple / ELI5`, and `Direct / Bullet-focused`.
+  * **Summary Format**: `Executive Bullet Points` (Default), `Narrative + Key Takeaways`, `Q&A Format`, and `Action Items & Next Steps`.
+  * **Target Depth & Length**: 3-tier selector (`Short ~100-150w`, `Medium ~250-400w`, `Detailed ~600+w`).
+* **High-Fidelity Document Extractors**:
+  * **DOCX Preservation**: Converts `.docx` to structured Markdown preserving `#` headings, `*` list items, and `|` tables via `mammoth`.
+  * **PDF Coordinate Grouping**: Groups text streams by vertical coordinate ($Y$-position) to preserve multi-column sections and table rows.
+  * **Native PDF & Image AI Buffer**: Passes PDF base64 inline buffers directly to Gemini models for native visual & structural reasoning.
+* **Optional Username Auth & History Dashboard**:
+  * **Top-Right Navigation**: `Login / Sign Up` button transforms into a User Profile badge (`@username`, `My History`, `Log Out`) when logged in.
+  * **100% Anonymous Access**: Account creation is completely optional. Non-logged-in users can summarize documents without restriction.
+  * **User History Drawer**: Logged-in users automatically save and revisit past summaries sorted by date, with copy and deletion controls.
+* **Anti-Decompression Bomb Security Shield**:
+  * Direct zip/archive file blocking (`.zip`, `.tar`, `.7z`, `.rar`).
+  * Enforced **15 MB max file size limit**.
+  * **2,000,000 character output cap** on DOCX, XLSX, and PDF extractions to prevent memory exhaustion / Zip Bomb attacks.
+  * Null-byte and control character input sanitization.
+* **Smooth Scroll CTA Navigation**: All Call-to-Action buttons ("Try Free", "Try it now", "Upload a document") smoothly navigate users directly to the upload zone with a visual focus ring indicator.
 
 ---
 
